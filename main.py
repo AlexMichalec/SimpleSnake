@@ -48,6 +48,7 @@ class Snake():
         self.segments.append(Segment(self.headx - SIZE*self.orientation[0], self.heady - SIZE*self.orientation[1], self.color))
         self.segments.append(Segment(self.headx - 2* SIZE*self.orientation[0], self.heady - 2 * SIZE*self.orientation[1], self.color))
 
+
     def eat(self):
         self.score += 10
         self.ate = True
@@ -82,6 +83,75 @@ class Snake():
 
         self.moved = True
 
+class AutoSnake(Snake):
+
+    def __init__(self, x, y, orientation, color):
+        super().__init__(x, y, orientation, color)
+        self.chosen_index = 0
+
+    def auto_turn(self):
+        if self.ate:
+            return
+        turned = False
+        insect = insects[self.chosen_index]
+        if insect.x == self.headx and self.orientation[1] == 0:
+            turned = True
+            ry = abs(insect.y - self.heady)
+            if ry < SCREEN_HEIGHT - ry:
+                if insect.y < self.heady:
+                    self.orientation = [0,-1]
+                else:
+                    self.orientation = [0, 1]
+            else:
+                if insect.y < self.heady:
+                    self.orientation = [0, 1]
+                else:
+                    self.orientation = [0, -1]
+
+        elif insect.y == self.heady and self.orientation[0] == 0:
+            turned = True
+            rx = abs(insect.x - self.headx)
+            if rx < SCREEN_WIDTH - rx:
+                if insect.x < self.headx:
+                    self.orientation = [-1, 0]
+                else:
+                    self.orientation = [1, 0]
+            else:
+                if insect.x < self.headx:
+                    self.orientation = [1, 0]
+                else:
+                    self.orientation = [-1, 0]
+
+        next_x = self.headx + self.orientation[0]*SIZE
+        next_y = self.heady + self.orientation[1]*SIZE
+
+        for s in self.segments:
+            if next_x == s.x and next_y == s.y:
+                if turned:
+                    self.orientation = [-x for x in self.orientation]
+                else:
+                    if self.orientation[0] == 0:
+                        self.orientation = random.choice(([1,0],[-1,0]))
+
+                    else:
+                        self.orientation = random.choice(([0, -1], [0, 1]))
+    def auto_turn2(self):
+        if len(self.segments) < SCREEN_HEIGHT // SIZE:
+            if self.heady == 0:
+                self.orientation = [1,0]
+                self.move()
+                self.orientation = [0,-1]
+        else:
+            next_y = self.heady - SIZE
+            if next_y < 0:
+                next_y = SCREEN_HEIGHT-SIZE
+            for s in self.segments:
+                if self.headx == s.x and next_y == s.y:
+                    self.orientation = [1, 0]
+                    self.move()
+                    self.orientation = [0, -1]
+                    return
+
 
 class Segment():
     def __init__(self, x, y, color):
@@ -99,9 +169,9 @@ def draw_bg(lines = False):
     screen.fill(bg_col)
     if lines:
         for i in range (SCREEN_WIDTH//SIZE+1):
-            pygame.draw.line(screen,"black",(i*SIZE,0),(i*SIZE,SCREEN_HEIGHT),3)
+            pygame.draw.line(screen,BLACK,(i*SIZE,0),(i*SIZE,SCREEN_HEIGHT),3)
         for i in range (SCREEN_HEIGHT//SIZE+1):
-            pygame.draw.line(screen,"black",(0,i*SIZE),(SCREEN_WIDTH, i*SIZE),3)
+            pygame.draw.line(screen,BLACK,(0,i*SIZE),(SCREEN_WIDTH, i*SIZE),3)
 
 def draw_scores():
     font = pygame.font.SysFont("Comic Sans", 20)
@@ -170,7 +240,7 @@ if os.path.exists("scoreboard"):
 
 run = start_screen()
 
-player = Snake(SCREEN_WIDTH//2,SCREEN_HEIGHT//2,(0,-1),GREEN)
+player = AutoSnake(SCREEN_WIDTH//2,SCREEN_HEIGHT//2,(0,-1),GREEN)
 insects = []
 for i in range(3):
     add_insect()
@@ -219,9 +289,7 @@ while run:
                 with open("Scoreboard","w") as my_file:
                     my_file.write(str(highscore))
 
-
-
-
+    player.auto_turn()
 
     player.move()
 
@@ -252,7 +320,7 @@ while run:
                 if player.dead:
                     if highscore < player.score:
                         highscore = player.score
-                    player = Snake(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, (0, -1), GREEN)
+                    player = AutoSnake(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, (0, -1), GREEN)
                     bg_col = LIGHT_GREEN
                     insects = []
                     for i in range(3):
@@ -262,6 +330,7 @@ while run:
         elif event.type == pygame.KEYUP:
             if event.key == pygame.K_SPACE:
                 fps = NORMAL
+
 
     pygame.display.update()
 pygame.quit()
