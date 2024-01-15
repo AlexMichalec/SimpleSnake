@@ -24,6 +24,9 @@ BUG_COLORS = ((242,242,114), (242, 197, 114), (242,150,114),
 bg_col = LIGHT_GREEN
 snake_col = GREEN
 
+#SETTINGS
+borders_on = False
+
 screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 pygame.display.set_caption("Simple Snake")
 
@@ -82,6 +85,21 @@ class Snake():
         self.heady = self.segments[0].y
 
         self.moved = True
+
+    def die(self):
+        player.dead = True
+        global highscore
+        global  bg_col
+        write_press_to_restart()
+        for ss in player.segments:
+            ss.color = GREY
+        bg_col = LIGHT_GREY
+        for i in insects:
+            i.color = GREY
+        if highscore < player.score:
+            highscore = player.score
+            with open("Scoreboard", "w") as my_file:
+                my_file.write(str(highscore))
 
 class AutoSnake(Snake):
 
@@ -173,6 +191,7 @@ def draw_bg(lines = False):
         for i in range (SCREEN_HEIGHT//SIZE+1):
             pygame.draw.line(screen,BLACK,(0,i*SIZE),(SCREEN_WIDTH, i*SIZE),3)
 
+
 def draw_scores():
     font = pygame.font.SysFont("Comic Sans", 20)
     rend = font.render("Score: "+str(player.score), True, "black")
@@ -180,6 +199,11 @@ def draw_scores():
     if highscore > player.score:
         rend = font.render("High Score: " + str(highscore), True, "black")
         screen.blit(rend, (10, 40))
+
+def draw_borders(w=5):
+    for b in borders:
+        pygame.draw.line(screen, BLACK, b[0], b[1], w)
+
 
 def write_press_to_restart():
     font = pygame.font.SysFont("Comic Sans", 25)
@@ -192,8 +216,8 @@ def write_congratulation():
     screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2, SCREEN_HEIGHT / 3))
 
 def add_insect():
-    rx = random.randint(0, SCREEN_WIDTH // SIZE-1) * SIZE
-    ry = random.randint(0, SCREEN_HEIGHT // SIZE-1) * SIZE
+    rx = random.randint(1, SCREEN_WIDTH // SIZE-2) * SIZE
+    ry = random.randint(1, SCREEN_HEIGHT // SIZE-2) * SIZE
     for s in player.segments:
         if s.x == rx and s.y == ry:
             add_insect()
@@ -245,17 +269,29 @@ insects = []
 for i in range(3):
     add_insect()
 
+#define borders
+temp = 5
+borders = [((temp, temp), (temp, SCREEN_HEIGHT - temp)),
+           ((temp, temp), (SCREEN_WIDTH - temp, temp)),
+           ((SCREEN_WIDTH - temp, SCREEN_HEIGHT - temp), (temp, SCREEN_HEIGHT - temp)),
+           ((SCREEN_WIDTH - temp, SCREEN_HEIGHT - temp), (SCREEN_WIDTH - temp, temp))]
+
 while run:
     clock.tick(fps)
 
     draw_bg()
-    player.draw()
+    eaten = None
     for num, i in enumerate(insects):
         i.draw()
         if player.headx == i.x and player.heady == i.y:
             player.eat()
-            add_insect()
-            insects.pop(num)
+            eaten = num
+    if eaten is not None:
+        insects.pop(eaten)
+        add_insect()
+    player.draw()
+    if borders_on:
+        draw_borders()
     draw_scores()
 
     # If WIN
@@ -277,19 +313,13 @@ while run:
     # If collision with itself / DEAD
     for s in player.segments[1:]:
         if s.x == player.headx and s.y == player.heady:
-            player.dead = True
-            write_press_to_restart()
-            for ss in player.segments:
-                ss.color = GREY
-            bg_col = LIGHT_GREY
-            for i in insects:
-                i.color = GREY
-            if highscore < player.score:
-                highscore = player.score
-                with open("Scoreboard","w") as my_file:
-                    my_file.write(str(highscore))
+            player.die()
+    if borders_on:
+        if player.headx < SIZE or player.headx >= SCREEN_WIDTH - SIZE or player.heady < SIZE or player.heady >= SCREEN_HEIGHT - SIZE:
+            player.die()
 
-    player.auto_turn()
+
+    #player.auto_turn()
 
     player.move()
 
