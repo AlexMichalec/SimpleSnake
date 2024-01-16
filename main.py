@@ -1,3 +1,5 @@
+import sys
+
 import pygame
 import random
 import os
@@ -7,7 +9,6 @@ pygame.init()
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
-SIZE = SCREEN_WIDTH // 20
 
 #colors:
 BLACK = (0, 0, 0)
@@ -26,6 +27,10 @@ snake_col = GREEN
 
 #SETTINGS
 borders_on = False
+number_of_insects = 3
+number_of_tiles = 20
+tile_size = SCREEN_WIDTH // number_of_tiles
+
 
 screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 pygame.display.set_caption("Simple Snake")
@@ -48,8 +53,8 @@ class Snake():
         self.color = color
         self.segments = []
         self.segments.append(Segment(self.headx,self.heady,self.color))
-        self.segments.append(Segment(self.headx - SIZE*self.orientation[0], self.heady - SIZE*self.orientation[1], self.color))
-        self.segments.append(Segment(self.headx - 2* SIZE*self.orientation[0], self.heady - 2 * SIZE*self.orientation[1], self.color))
+        self.segments.append(Segment(self.headx - tile_size * self.orientation[0], self.heady - tile_size * self.orientation[1], self.color))
+        self.segments.append(Segment(self.headx - 2 * tile_size * self.orientation[0], self.heady - 2 * tile_size * self.orientation[1], self.color))
 
 
     def eat(self):
@@ -69,13 +74,13 @@ class Snake():
         else:
             self.segments.pop(-1)
 
-        new_one = Segment(self.headx + self.orientation[0]*SIZE, self.heady + self.orientation[1]*SIZE, self.color)
+        new_one = Segment(self.headx + self.orientation[0] * tile_size, self.heady + self.orientation[1] * tile_size, self.color)
         self.segments = [new_one] + self.segments
 
         if self.segments[0].x < 0:
-            self.segments[0].x = SCREEN_WIDTH-SIZE
+            self.segments[0].x = SCREEN_WIDTH - tile_size
         if self.segments[0].y < 0:
-            self.segments[0].y = SCREEN_HEIGHT-SIZE
+            self.segments[0].y = SCREEN_HEIGHT - tile_size
         if self.segments[0].x >= SCREEN_WIDTH:
             self.segments[0].x = 0
         if self.segments[0].y >= SCREEN_HEIGHT :
@@ -140,8 +145,8 @@ class AutoSnake(Snake):
                 else:
                     self.orientation = [-1, 0]
 
-        next_x = self.headx + self.orientation[0]*SIZE
-        next_y = self.heady + self.orientation[1]*SIZE
+        next_x = self.headx + self.orientation[0] * tile_size
+        next_y = self.heady + self.orientation[1] * tile_size
 
         for s in self.segments:
             if next_x == s.x and next_y == s.y:
@@ -154,15 +159,15 @@ class AutoSnake(Snake):
                     else:
                         self.orientation = random.choice(([0, -1], [0, 1]))
     def auto_turn2(self):
-        if len(self.segments) < SCREEN_HEIGHT // SIZE:
+        if len(self.segments) < SCREEN_HEIGHT // tile_size:
             if self.heady == 0:
                 self.orientation = [1,0]
                 self.move()
                 self.orientation = [0,-1]
         else:
-            next_y = self.heady - SIZE
+            next_y = self.heady - tile_size
             if next_y < 0:
-                next_y = SCREEN_HEIGHT-SIZE
+                next_y = SCREEN_HEIGHT - tile_size
             for s in self.segments:
                 if self.headx == s.x and next_y == s.y:
                     self.orientation = [1, 0]
@@ -178,7 +183,7 @@ class Segment():
         self.color = color
 
     def draw(self):
-        rect = pygame.rect.Rect(self.x,self.y,SIZE,SIZE)
+        rect = pygame.rect.Rect(self.x, self.y, tile_size, tile_size)
         pygame.draw.rect(screen, self.color, rect)
         pygame.draw.rect(screen, bg_col, rect, 3)
 
@@ -186,10 +191,10 @@ class Segment():
 def draw_bg(lines = False):
     screen.fill(bg_col)
     if lines:
-        for i in range (SCREEN_WIDTH//SIZE+1):
-            pygame.draw.line(screen,BLACK,(i*SIZE,0),(i*SIZE,SCREEN_HEIGHT),3)
-        for i in range (SCREEN_HEIGHT//SIZE+1):
-            pygame.draw.line(screen,BLACK,(0,i*SIZE),(SCREEN_WIDTH, i*SIZE),3)
+        for i in range (SCREEN_WIDTH // tile_size + 1):
+            pygame.draw.line(screen, BLACK, (i * tile_size, 0), (i * tile_size, SCREEN_HEIGHT), 3)
+        for i in range (SCREEN_HEIGHT // tile_size + 1):
+            pygame.draw.line(screen, BLACK, (0, i * tile_size), (SCREEN_WIDTH, i * tile_size), 3)
 
 
 def draw_scores():
@@ -215,9 +220,26 @@ def write_congratulation():
     rend = font.render("Congratulation, you won :D", True, "black")
     screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2, SCREEN_HEIGHT / 3))
 
+def write(text, y, size=20, to_right=0):
+    font = pygame.font.SysFont("Comic Sans", size)
+    rend = font.render(text, True, BLACK)
+    screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2 + to_right, y))
+
+def write_long(longtext, y, letters_in_line = 50, interline = 5 ,size=20,to_right = 0):
+    line = ""
+    temp = 0
+    for word in longtext.split():
+        if len(line) + len(word) < letters_in_line:
+            line = line + " " + word
+        else:
+            write(line, y + temp, size, to_right)
+            line = word
+            temp += size + interline
+    write(line, y + temp, size, to_right)
+
 def add_insect():
-    rx = random.randint(1, SCREEN_WIDTH // SIZE-2) * SIZE
-    ry = random.randint(1, SCREEN_HEIGHT // SIZE-2) * SIZE
+    rx = random.randint(1, SCREEN_WIDTH // tile_size - 2) * tile_size
+    ry = random.randint(1, SCREEN_HEIGHT // tile_size - 2) * tile_size
     for s in player.segments:
         if s.x == rx and s.y == ry:
             add_insect()
@@ -231,15 +253,19 @@ def add_insect():
 
 def start_screen():
     run = True
+    chosen = 0
     while run:
         screen.fill(LIGHT_GREEN)
         font = pygame.font.SysFont("Comic Sans", 80)
         rend = font.render("Simple Snake", True, GREEN)
         screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2, SCREEN_HEIGHT / 3))
 
-        font = pygame.font.SysFont("Comic Sans", 20)
-        rend = font.render("Click [SPACE] to start :D", True, BLACK)
-        screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2, SCREEN_HEIGHT * 2 / 3))
+        texts = ["1. New Game", "2. Instruction", "3. Settings", "x. Exit"]
+        for n, t in enumerate(texts):
+            if n == chosen:
+                t = ">> " + t + " <<"
+            write(t, SCREEN_HEIGHT * 3/5 + n*30, 25)
+
 
         font = pygame.font.SysFont("Comic Sans", 20)
         rend = font.render("by Alex Michalec", True, GREEN)
@@ -251,11 +277,103 @@ def start_screen():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return False
-                if event.key == pygame.K_SPACE:
+                if event.key == pygame.K_1:
                     return True
+                if event.key == pygame.K_2:
+                    instruction_screen()
+                if event.key == pygame.K_3:
+                    settings_screen()
+                if event.key == pygame.K_x:
+                    return False
+                if event.key in (pygame.K_DOWN, pygame.K_s):
+                    chosen = (chosen+ 1 ) % 4
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    chosen = (chosen - 1) % 4
+                if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    if chosen == 0:
+                        return True
+                    elif chosen == 1:
+                        instruction_screen()
+                    elif chosen == 2:
+                        settings_screen()
+                    elif chosen == 3:
+                        return False
+
+
 
         pygame.display.update()
 
+def instruction_screen():
+    text = "Guide the snake to eat the food, growing longer with each meal. Avoid collisions with the walls and \
+    the snake's own body. You can use WASD or the Arrow Keys to control the snake's direction. Press [Space] to \
+    increase the speed of the game, but be careful! The faster speed can make controlling the snake more challenging. \
+    Plan your moves ahead to avoid getting trapped. You can change the size of the board and turn on/off the walls in SETTINGS. \
+    Challenge yourself to beat your high score in each game. Have Fun and Happy Snaking! "
+    while True:
+        screen.fill(bg_col)
+
+        write("Instruction:", SCREEN_HEIGHT *1/5, 30)
+        write_long(text, SCREEN_HEIGHT *2/5 - 60)
+        write("Press any key to comeback to the MENU!", SCREEN_HEIGHT * 4 / 5)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                return
+        pygame.display.update()
+
+def settings_screen():
+    texts = [["Size:", "[ ]Small 10x10", "[x]Medium 20x20", "[ ]Large 40x40"],
+             ["Walls:", "[ ]On", "[x]Off"],
+             ["Night mode:", "[ ]On", "[x]Off", "[ ]Auto"],
+             ["Reset the High Scores"]]
+    chosen = [0,0]
+    while True:
+        screen.fill(bg_col)
+
+        write("Settings:", SCREEN_HEIGHT *1/5, 30)
+
+        for sett, text in enumerate(texts):
+            for option, t in enumerate(text):
+                if chosen[0] == sett and chosen[1] == option:
+                    t = ">>" + t + "<<"
+                if sett == 3:
+                    write(t, SCREEN_HEIGHT * 3 / 5)
+                else:
+                    write(t, SCREEN_HEIGHT * 2/5 + option*25 - 30, to_right=200*sett - 200)
+
+
+        write("Press [SPACE] to comeback to the MENU!", SCREEN_HEIGHT * 4 / 5)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    return
+                if event.key in (pygame.K_a, pygame.K_LEFT):
+                    chosen[0] = (chosen [0]-1) % 4
+                    chosen[1] = 0
+                if event.key in (pygame.K_d, pygame.K_RIGHT):
+                    chosen[0] = (chosen [0]+1) % 4
+                    chosen[1] = 0
+                if event.key in (pygame.K_w, pygame.K_UP):
+                    chosen[1] = (chosen [1]-1) % len(texts[chosen[0]])
+                if event.key in (pygame.K_s, pygame.K_DOWN):
+                    chosen[1] = (chosen [1]+1) % len(texts[chosen[0]])
+                if event.key == pygame.K_RETURN:
+                    if chosen[0] == 0:
+                        pass
+                    elif chosen[0] == 1:
+                        if chosen[1] == 1:
+                            borders_on = True
+                        elif chosen[1] == 2:
+                            borders_on = False
+
+        pygame.display.update()
 
 highscore = 0
 if os.path.exists("scoreboard"):
@@ -295,7 +413,7 @@ while run:
     draw_scores()
 
     # If WIN
-    if player.score >= (SCREEN_WIDTH//SIZE) * (SCREEN_HEIGHT//SIZE) * 10 - 30 :
+    if player.score >= (SCREEN_WIDTH // tile_size) * (SCREEN_HEIGHT // tile_size) * 10 - 30 :
         player.dead = True
         write_press_to_restart()
         write_congratulation()
@@ -315,7 +433,7 @@ while run:
         if s.x == player.headx and s.y == player.heady:
             player.die()
     if borders_on:
-        if player.headx < SIZE or player.headx >= SCREEN_WIDTH - SIZE or player.heady < SIZE or player.heady >= SCREEN_HEIGHT - SIZE:
+        if player.headx < tile_size or player.headx >= SCREEN_WIDTH - tile_size or player.heady < tile_size or player.heady >= SCREEN_HEIGHT - tile_size:
             player.die()
 
 
