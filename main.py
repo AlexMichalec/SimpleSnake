@@ -1,5 +1,5 @@
 import sys
-
+import pickle
 import pygame
 import random
 import os
@@ -14,8 +14,10 @@ SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
 BLACK = (0, 0, 0)
 LIGHT_GREEN = (190, 255, 170)
 GREEN = (75, 225, 127)
+DARK_GREEN = (55, 215, 107)
 LIGHT_GREY = (210, 210, 210)
 GREY = (150, 150, 150)
+DARK_GREY = (130, 130, 130)
 LIGHT_GOLD = (250, 240, 190)
 GOLD = (235, 194, 60)
 BUG_COLORS = ((242,242,114), (242, 197, 114), (242,150,114),
@@ -24,12 +26,17 @@ BUG_COLORS = ((242,242,114), (242, 197, 114), (242,150,114),
 
 bg_col = LIGHT_GREEN
 snake_col = GREEN
+head_col = DARK_GREEN
 
 #SETTINGS
 borders_on = False
 number_of_insects = 3
 number_of_tiles = 20
 tile_size = SCREEN_WIDTH // number_of_tiles
+night_mode = 0
+sth_changed = False
+
+
 
 
 screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
@@ -62,29 +69,48 @@ class Snake():
         self.ate = True
 
     def draw(self):
-        for s in self.segments:
+        self.segments[0].draw(head=True)
+        for s in self.segments[1:]:
             s.draw()
+
 
     def move(self):
         if self.dead:
             return
 
-        if self.ate:
-            self.ate = False
-        else:
-            self.segments.pop(-1)
 
         new_one = Segment(self.headx + self.orientation[0] * tile_size, self.heady + self.orientation[1] * tile_size, self.color)
         self.segments = [new_one] + self.segments
 
+
         if self.segments[0].x < 0:
-            self.segments[0].x = SCREEN_WIDTH - tile_size
+            if borders_on:
+                self.die()
+            else:
+                self.segments[0].x = SCREEN_WIDTH - tile_size
         if self.segments[0].y < 0:
-            self.segments[0].y = SCREEN_HEIGHT - tile_size
+            if borders_on:
+                self.die()
+            else:
+                self.segments[0].y = SCREEN_HEIGHT - tile_size
         if self.segments[0].x >= SCREEN_WIDTH:
-            self.segments[0].x = 0
+            if borders_on:
+                self.die()
+            else:
+                self.segments[0].x = 0
         if self.segments[0].y >= SCREEN_HEIGHT :
-            self.segments[0].y = 0
+            if borders_on:
+                self.die()
+            else:
+                self.segments[0].y = 0
+
+        if self.ate:
+            self.ate = False
+        else:
+            if not self.dead:
+                self.segments.pop(-1)
+            else:
+                self.segments.pop(0)
 
         self.headx = self.segments[0].x
         self.heady = self.segments[0].y
@@ -93,18 +119,14 @@ class Snake():
 
     def die(self):
         player.dead = True
-        global highscore
-        global  bg_col
-        write_press_to_restart()
+        global highscore, bg_col, head_col
         for ss in player.segments:
             ss.color = GREY
         bg_col = LIGHT_GREY
+        head_col = DARK_GREY
         for i in insects:
             i.color = GREY
-        if highscore < player.score:
-            highscore = player.score
-            with open("Scoreboard", "w") as my_file:
-                my_file.write(str(highscore))
+        update_high_score()
 
 class AutoSnake(Snake):
 
@@ -175,18 +197,20 @@ class AutoSnake(Snake):
                     self.orientation = [0, -1]
                     return
 
-
 class Segment():
     def __init__(self, x, y, color):
         self.x = x
         self.y = y
         self.color = color
 
-    def draw(self):
+    def draw(self, head=False):
+
         rect = pygame.rect.Rect(self.x, self.y, tile_size, tile_size)
-        pygame.draw.rect(screen, self.color, rect)
+        pygame.draw.rect(screen, self.color if not head else head_col , rect)
         pygame.draw.rect(screen, bg_col, rect, 3)
 
+    def __repr__(self):
+        return f"S({self.x},{self.y})"
 
 def draw_bg(lines = False):
     screen.fill(bg_col)
@@ -201,24 +225,14 @@ def draw_scores():
     font = pygame.font.SysFont("Comic Sans", 20)
     rend = font.render("Score: "+str(player.score), True, "black")
     screen.blit(rend, (10, 10))
-    if highscore > player.score:
-        rend = font.render("High Score: " + str(highscore), True, "black")
+    if get_high_score() > player.score:
+        rend = font.render("High Score: " + str(get_high_score()), True, "black")
         screen.blit(rend, (10, 40))
 
 def draw_borders(w=5):
     for b in borders:
         pygame.draw.line(screen, BLACK, b[0], b[1], w)
 
-
-def write_press_to_restart():
-    font = pygame.font.SysFont("Comic Sans", 25)
-    rend = font.render("Press [SPACE] to start again!", True, "black")
-    screen.blit(rend, (SCREEN_WIDTH//2 - rend.get_width()//2, SCREEN_HEIGHT*2 /3))
-
-def write_congratulation():
-    font = pygame.font.SysFont("Comic Sans", 40)
-    rend = font.render("Congratulation, you won :D", True, "black")
-    screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2, SCREEN_HEIGHT / 3))
 
 def write(text, y, size=20, to_right=0):
     font = pygame.font.SysFont("Comic Sans", size)
@@ -238,16 +252,17 @@ def write_long(longtext, y, letters_in_line = 50, interline = 5 ,size=20,to_righ
     write(line, y + temp, size, to_right)
 
 def add_insect():
-    rx = random.randint(1, SCREEN_WIDTH // tile_size - 2) * tile_size
-    ry = random.randint(1, SCREEN_HEIGHT // tile_size - 2) * tile_size
+    possible_places = []
+    for x in range(0, SCREEN_WIDTH // tile_size):
+        for y in range(0,SCREEN_HEIGHT // tile_size):
+            possible_places.append((x*tile_size,y*tile_size))
     for s in player.segments:
-        if s.x == rx and s.y == ry:
-            add_insect()
-            return
+        if (s.x, s.y) in possible_places:
+            possible_places.remove((s.x, s.y))
     for i in insects:
-        if i.x == rx and i.y == ry:
-            add_insect()
-            return
+        if (i.x, i.y) in possible_places:
+            possible_places.remove((i.x, i.y))
+    rx, ry = random.choice(possible_places)
     rcol = random.choice(BUG_COLORS)
     insects.append(Segment(rx, ry, rcol))
 
@@ -325,18 +340,31 @@ def instruction_screen():
         pygame.display.update()
 
 def settings_screen():
-    texts = [["Size:", "[ ]Small 10x10", "[x]Medium 20x20", "[ ]Large 40x40"],
-             ["Walls:", "[ ]On", "[x]Off"],
-             ["Night mode:", "[ ]On", "[x]Off", "[ ]Auto"],
+    texts = [["Size:", "Small 10x10", "Medium 20x20", "Large 40x40"],
+             ["Walls:", "Off", "On"],
+             ["Night mode:", "Not", "Ready", "Yet"],
              ["Reset the High Scores"]]
+    settings = [[0,0,0],[0,0],[0,0,0]]
     chosen = [0,0]
+    global number_of_insects, number_of_tiles, tile_size, sth_changed, night_mode, borders_on
+
     while True:
+        settings[0] = [1, 0, 0] if number_of_tiles == 10 else ([0, 1, 0] if number_of_tiles == 20 else [0, 0, 1])
+        settings[1] = [0, 1] if borders_on else [1, 0]
+        settings[2] = [0,0,0]
+        settings[2][night_mode] = 1
+
         screen.fill(bg_col)
 
         write("Settings:", SCREEN_HEIGHT *1/5, 30)
 
         for sett, text in enumerate(texts):
             for option, t in enumerate(text):
+                if option > 0:
+                    if settings[sett][option-1]:
+                        t = "[x]" + t
+                    else:
+                        t = "[ ]" + t
                 if chosen[0] == sett and chosen[1] == option:
                     t = ">>" + t + "<<"
                 if sett == 3:
@@ -349,10 +377,12 @@ def settings_screen():
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                save_settings()
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
+                    save_settings()
                     return
                 if event.key in (pygame.K_a, pygame.K_LEFT):
                     chosen[0] = (chosen [0]-1) % 4
@@ -365,26 +395,88 @@ def settings_screen():
                 if event.key in (pygame.K_s, pygame.K_DOWN):
                     chosen[1] = (chosen [1]+1) % len(texts[chosen[0]])
                 if event.key == pygame.K_RETURN:
-                    if chosen[0] == 0:
-                        pass
-                    elif chosen[0] == 1:
-                        if chosen[1] == 1:
-                            borders_on = True
-                        elif chosen[1] == 2:
-                            borders_on = False
+                    if chosen ==[0,1]:
+                        number_of_tiles = 10
+                        tile_size = SCREEN_WIDTH // number_of_tiles
+                        number_of_insects = 2
+                        sth_changed = True
+                    if chosen ==[0,2]:
+                        number_of_tiles = 20
+                        tile_size = SCREEN_WIDTH // number_of_tiles
+                        number_of_insects = 3
+                        sth_changed = True
+                    if chosen ==[0,3]:
+                        number_of_tiles = 40
+                        tile_size = SCREEN_WIDTH // number_of_tiles
+                        number_of_insects = 5
+                        sth_changed = True
+                    if chosen == [1,1]: #BORDERS OFF
+                        borders_on = False
+                        sth_changed = True
+                    if chosen == [1,2]: #borders on
+                        borders_on = True
+                        sth_changed = True
+                    if chosen == [2,1]:
+                        night_mode = 0
+                    if chosen == [2,2]:
+                        night_mode = 1
+                    if chosen == [2,3]:
+                        night_mode = 2
+                    if chosen == [3,0]:
+                        reset_high_scores()
+                        texts[3][0] = "Scoreboard restarted succesfully."
+
 
         pygame.display.update()
 
-highscore = 0
-if os.path.exists("scoreboard"):
-    with open("scoreboard") as my_file:
-        highscore = int(my_file.read())
+def get_high_score():
+    return highscores[0 if number_of_tiles == 10 else (1 if number_of_tiles == 20 else 2)][1 if borders_on else 0]
 
+def update_high_score():
+    global highscores
+    if player.score > get_high_score():
+        highscores[0 if number_of_tiles == 10 else (1 if number_of_tiles == 20 else 2)][1 if borders_on else 0] = player.score
+        with open("scoreboard", "wb") as my_file:
+            pickle.dump(highscores, my_file)
+
+def reset_high_scores():
+    global highscores
+    highscores = [[0,0],[0,0],[0,0]]
+    with open("scoreboard", "wb") as my_file:
+        pickle.dump(highscores, my_file)
+
+def load_settings():
+
+    if os.path.exists("settings"):
+        global tile_size, number_of_tiles, borders_on, night_mode, number_of_insects
+        with open("settings", "rb") as my_file:
+            temp = pickle.load(my_file)
+            if temp[0] in (10,20,40):
+                number_of_tiles = temp[0]
+                tile_size = SCREEN_WIDTH//number_of_tiles
+                number_of_insects = 2 if number_of_tiles == 10 else (3 if number_of_tiles==20 else 5)
+            if temp[1] in (True, False):
+                borders_on = temp[1]
+            if temp[2] in (0,1,2):
+                night_mode = temp[2]
+
+def save_settings():
+    with open("settings", "wb") as my_file:
+        pickle.dump([number_of_tiles,borders_on,night_mode],my_file)
+
+
+
+highscores = [[0,0],[0,0],[0,0]]
+if os.path.exists("scoreboard"):
+    with open("scoreboard", "rb") as my_file:
+        highscores = pickle.load(my_file)
+
+load_settings()
 run = start_screen()
 
 player = AutoSnake(SCREEN_WIDTH//2,SCREEN_HEIGHT//2,(0,-1),GREEN)
 insects = []
-for i in range(3):
+for i in range(number_of_insects):
     add_insect()
 
 #define borders
@@ -393,59 +485,61 @@ borders = [((temp, temp), (temp, SCREEN_HEIGHT - temp)),
            ((temp, temp), (SCREEN_WIDTH - temp, temp)),
            ((SCREEN_WIDTH - temp, SCREEN_HEIGHT - temp), (temp, SCREEN_HEIGHT - temp)),
            ((SCREEN_WIDTH - temp, SCREEN_HEIGHT - temp), (SCREEN_WIDTH - temp, temp))]
+sth_changed = False
+
 
 while run:
     clock.tick(fps)
 
     draw_bg()
-    eaten = None
-    for num, i in enumerate(insects):
-        i.draw()
-        if player.headx == i.x and player.heady == i.y:
-            player.eat()
-            eaten = num
-    if eaten is not None:
-        insects.pop(eaten)
-        add_insect()
-    player.draw()
-    if borders_on:
-        draw_borders()
+    if not sth_changed:
+        eaten = None
+        for num, i in enumerate(insects):
+            i.draw()
+            if player.headx == i.x and player.heady == i.y:
+                player.eat()
+                eaten = num
+        if eaten is not None:
+            insects.pop(eaten)
+            if player.score < (SCREEN_WIDTH // tile_size) * (SCREEN_HEIGHT // tile_size) * 10 - 10*number_of_insects:
+                add_insect()
+        player.draw()
+        if borders_on:
+            draw_borders()
     draw_scores()
+    if player.dead:
+        write("Press [SPACE] to start again", y= 380, size = 25)
+        write("Press [CTRL] to go to the SETTINGS", y =420, size = 25)
+        write("Press [ESC] to close the game", y = 460, size=25)
+
 
     # If WIN
-    if player.score >= (SCREEN_WIDTH // tile_size) * (SCREEN_HEIGHT // tile_size) * 10 - 30 :
+    if player.score >= (SCREEN_WIDTH // tile_size) * (SCREEN_HEIGHT // tile_size) * 10:
         player.dead = True
-        write_press_to_restart()
-        write_congratulation()
+        write("Congratulation, you won! :D", y=200, size=50)
         for s in player.segments:
             s.color = GOLD
         for i in insects:
             i.color = GOLD
         bg_col = LIGHT_GOLD
-        if highscore < player.score:
-            highscore = player.score
-            with open("Scoreboard", "w") as my_file:
-                my_file.write(str(highscore))
+        head_col = GOLD
+        update_high_score()
 
 
     # If collision with itself / DEAD
     for s in player.segments[1:]:
         if s.x == player.headx and s.y == player.heady:
             player.die()
-    if borders_on:
-        if player.headx < tile_size or player.headx >= SCREEN_WIDTH - tile_size or player.heady < tile_size or player.heady >= SCREEN_HEIGHT - tile_size:
-            player.die()
 
 
-    #player.auto_turn()
+    #player.auto_turn2()
 
     player.move()
 
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            if highscore < player.score:
-                highscore = player.score
+            update_high_score()
             run = False
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_a, pygame.K_LEFT) and player.orientation[0] == 0 and player.moved:
@@ -461,17 +555,21 @@ while run:
                 player.orientation = (0,1)
                 player.moved = False
             if event.key == pygame.K_ESCAPE:
-                if highscore < player.score:
-                    highscore = player.score
-                run = False
+                if player.dead:
+                    run = False
+                else:
+                    player.die()
+            if event.key in (pygame.K_LCTRL, pygame.K_RCTRL) and player.dead:
+                settings_screen()
+                player.score = 0
             if event.key == pygame.K_SPACE:
                 if player.dead:
-                    if highscore < player.score:
-                        highscore = player.score
+                    sth_changed = False
                     player = AutoSnake(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, (0, -1), GREEN)
                     bg_col = LIGHT_GREEN
+                    head_col = DARK_GREEN
                     insects = []
-                    for i in range(3):
+                    for i in range(number_of_insects):
                         add_insect()
                 else:
                     fps = SPEEDUP
@@ -481,4 +579,6 @@ while run:
 
 
     pygame.display.update()
+
+
 pygame.quit()
