@@ -3,6 +3,9 @@ import pickle
 import pygame
 import random
 import os
+from datetime import datetime
+from suntime import Sun
+
 
 pygame.init()
 
@@ -34,7 +37,9 @@ number_of_insects = 3
 number_of_tiles = 20
 tile_size = SCREEN_WIDTH // number_of_tiles
 night_mode = 0
+is_day = True
 sth_changed = False
+
 
 
 
@@ -44,7 +49,7 @@ pygame.display.set_caption("Simple Snake")
 
 clock = pygame.time.Clock()
 NORMAL = 10
-SPEEDUP = 30
+SPEEDUP = 35
 fps = NORMAL
 
 class Snake():
@@ -180,6 +185,7 @@ class AutoSnake(Snake):
 
                     else:
                         self.orientation = random.choice(([0, -1], [0, 1]))
+
     def auto_turn2(self):
         if len(self.segments) < SCREEN_HEIGHT // tile_size:
             if self.heady == 0:
@@ -197,6 +203,38 @@ class AutoSnake(Snake):
                     self.orientation = [0, -1]
                     return
 
+    def auto_turn3(self):
+        if self.heady == 0:
+            self.orientation = (1, 0)
+            self.move()
+            eaten = None
+            for num, i in enumerate(insects):
+                i.draw()
+                if player.headx == i.x and player.heady == i.y:
+                    player.eat()
+                    eaten = num
+            if eaten is not None:
+                insects.pop(eaten)
+                if player.score < (SCREEN_WIDTH // tile_size) * (
+                        SCREEN_HEIGHT // tile_size) * 10 - 10 * number_of_insects:
+                    add_insect()
+            self.orientation = (0, 1)
+        elif self.heady >= SCREEN_HEIGHT- tile_size :
+            self.orientation = (1, 0)
+            self.move()
+            eaten = None
+            for num, i in enumerate(insects):
+                i.draw()
+                if player.headx == i.x and player.heady == i.y:
+                    player.eat()
+                    eaten = num
+            if eaten is not None:
+                insects.pop(eaten)
+                if player.score < (SCREEN_WIDTH // tile_size) * (
+                        SCREEN_HEIGHT // tile_size) * 10 - 10 * number_of_insects:
+                    add_insect()
+            self.orientation = (0, -1)
+
 class Segment():
     def __init__(self, x, y, color):
         self.x = x
@@ -206,37 +244,45 @@ class Segment():
     def draw(self, head=False):
 
         rect = pygame.rect.Rect(self.x, self.y, tile_size, tile_size)
-        pygame.draw.rect(screen, self.color if not head else head_col , rect)
-        pygame.draw.rect(screen, bg_col, rect, 3)
+        if is_day:
+            pygame.draw.rect(screen, self.color if not head else head_col , rect)
+            pygame.draw.rect(screen, bg_col, rect, 3)
+        else:
+            pygame.draw.rect(screen, self.color if not head else head_col, rect, 3 if not head else 5)
 
     def __repr__(self):
         return f"S({self.x},{self.y})"
 
+
 def draw_bg(lines = False):
-    screen.fill(bg_col)
-    if lines:
-        for i in range (SCREEN_WIDTH // tile_size + 1):
-            pygame.draw.line(screen, BLACK, (i * tile_size, 0), (i * tile_size, SCREEN_HEIGHT), 3)
-        for i in range (SCREEN_HEIGHT // tile_size + 1):
-            pygame.draw.line(screen, BLACK, (0, i * tile_size), (SCREEN_WIDTH, i * tile_size), 3)
+    if is_day:
+        screen.fill(bg_col)
+    else:
+        screen.fill(BLACK)
+
 
 
 def draw_scores():
+    color = "black" if is_day else "white"
     font = pygame.font.SysFont("Comic Sans", 20)
-    rend = font.render("Score: "+str(player.score), True, "black")
+    rend = font.render("Score: "+str(player.score), True, color)
     screen.blit(rend, (10, 10))
     if get_high_score() > player.score:
-        rend = font.render("High Score: " + str(get_high_score()), True, "black")
+        rend = font.render("High Score: " + str(get_high_score()), True, color)
         screen.blit(rend, (10, 40))
 
 def draw_borders(w=5):
     for b in borders:
-        pygame.draw.line(screen, BLACK, b[0], b[1], w)
+        if is_day:
+            pygame.draw.line(screen, BLACK, b[0], b[1], w)
+        else:
+            pygame.draw.line(screen, "white", b[0], b[1], w)
 
 
 def write(text, y, size=20, to_right=0):
+    color = "black" if is_day else "white"
     font = pygame.font.SysFont("Comic Sans", size)
-    rend = font.render(text, True, BLACK)
+    rend = font.render(text, True, color)
     screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2 + to_right, y))
 
 def write_long(longtext, y, letters_in_line = 50, interline = 5 ,size=20,to_right = 0):
@@ -262,6 +308,8 @@ def add_insect():
     for i in insects:
         if (i.x, i.y) in possible_places:
             possible_places.remove((i.x, i.y))
+    if len(possible_places) == 0:
+        return
     rx, ry = random.choice(possible_places)
     rcol = random.choice(BUG_COLORS)
     insects.append(Segment(rx, ry, rcol))
@@ -270,7 +318,7 @@ def start_screen():
     run = True
     chosen = 0
     while run:
-        screen.fill(LIGHT_GREEN)
+        screen.fill(LIGHT_GREEN if is_day else BLACK)
         font = pygame.font.SysFont("Comic Sans", 80)
         rend = font.render("Simple Snake", True, GREEN)
         screen.blit(rend, (SCREEN_WIDTH // 2 - rend.get_width() // 2, SCREEN_HEIGHT / 3))
@@ -325,7 +373,7 @@ def instruction_screen():
     Plan your moves ahead to avoid getting trapped. You can change the size of the board and turn on/off the walls in SETTINGS. \
     Challenge yourself to beat your high score in each game. Have Fun and Happy Snaking! "
     while True:
-        screen.fill(bg_col)
+        screen.fill(bg_col if is_day else BLACK)
 
         write("Instruction:", SCREEN_HEIGHT *1/5, 30)
         write_long(text, SCREEN_HEIGHT *2/5 - 60)
@@ -342,11 +390,11 @@ def instruction_screen():
 def settings_screen():
     texts = [["Size:", "Small 10x10", "Medium 20x20", "Large 40x40"],
              ["Walls:", "Off", "On"],
-             ["Night mode:", "Not", "Ready", "Yet"],
+             ["Night mode:", "Off", "On", "Auto"],
              ["Reset the High Scores"]]
     settings = [[0,0,0],[0,0],[0,0,0]]
     chosen = [0,0]
-    global number_of_insects, number_of_tiles, tile_size, sth_changed, night_mode, borders_on
+    global number_of_insects, number_of_tiles, tile_size, sth_changed, night_mode, borders_on, is_day
 
     while True:
         settings[0] = [1, 0, 0] if number_of_tiles == 10 else ([0, 1, 0] if number_of_tiles == 20 else [0, 0, 1])
@@ -354,7 +402,7 @@ def settings_screen():
         settings[2] = [0,0,0]
         settings[2][night_mode] = 1
 
-        screen.fill(bg_col)
+        screen.fill(bg_col if is_day else BLACK)
 
         write("Settings:", SCREEN_HEIGHT *1/5, 30)
 
@@ -384,6 +432,10 @@ def settings_screen():
                 if event.key == pygame.K_SPACE:
                     save_settings()
                     return
+                if event.key == pygame.K_ESCAPE:
+                    save_settings()
+                    pygame.quit()
+                    sys.exit()
                 if event.key in (pygame.K_a, pygame.K_LEFT):
                     chosen[0] = (chosen [0]-1) % 4
                     chosen[1] = 0
@@ -418,10 +470,13 @@ def settings_screen():
                         sth_changed = True
                     if chosen == [2,1]:
                         night_mode = 0
+                        is_day = True
                     if chosen == [2,2]:
                         night_mode = 1
+                        is_day = False
                     if chosen == [2,3]:
                         night_mode = 2
+                        is_day = is_it_day()
                     if chosen == [3,0]:
                         reset_high_scores()
                         texts[3][0] = "Scoreboard restarted succesfully."
@@ -448,9 +503,10 @@ def reset_high_scores():
 def load_settings():
 
     if os.path.exists("settings"):
-        global tile_size, number_of_tiles, borders_on, night_mode, number_of_insects
+        global tile_size, number_of_tiles, borders_on, night_mode, number_of_insects, is_day
         with open("settings", "rb") as my_file:
             temp = pickle.load(my_file)
+            print(temp)
             if temp[0] in (10,20,40):
                 number_of_tiles = temp[0]
                 tile_size = SCREEN_WIDTH//number_of_tiles
@@ -459,12 +515,21 @@ def load_settings():
                 borders_on = temp[1]
             if temp[2] in (0,1,2):
                 night_mode = temp[2]
+                if night_mode == 2:
+                    is_day = is_it_day()
+                else:
+                    is_day = bool(not night_mode)
 
 def save_settings():
     with open("settings", "wb") as my_file:
         pickle.dump([number_of_tiles,borders_on,night_mode],my_file)
 
-
+def is_it_day():
+    s = Sun(52.21, 21.00)
+    sunrise = s.get_local_sunrise_time()
+    sunset = s.get_sunset_time()
+    now = datetime.now(tz=sunrise.tzinfo)
+    return sunrise < now < sunset
 
 highscores = [[0,0],[0,0],[0,0]]
 if os.path.exists("scoreboard"):
@@ -514,7 +579,7 @@ while run:
 
 
     # If WIN
-    if player.score >= (SCREEN_WIDTH // tile_size) * (SCREEN_HEIGHT // tile_size) * 10:
+    if player.score >= (SCREEN_WIDTH // tile_size) * (SCREEN_HEIGHT // tile_size) * 10 - 20:
         player.dead = True
         write("Congratulation, you won! :D", y=200, size=50)
         for s in player.segments:
@@ -532,7 +597,7 @@ while run:
             player.die()
 
 
-    #player.auto_turn2()
+    #player.auto_turn3()
 
     player.move()
 
@@ -569,6 +634,8 @@ while run:
                     bg_col = LIGHT_GREEN
                     head_col = DARK_GREEN
                     insects = []
+                    if night_mode == 2:
+                        is_day=is_it_day()
                     for i in range(number_of_insects):
                         add_insect()
                 else:
